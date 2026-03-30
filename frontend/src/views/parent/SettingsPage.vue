@@ -1,0 +1,362 @@
+<template>
+  <div class="parent-profile">
+    <el-card class="profile-card">
+      <template #header>
+        <div class="card-header">
+          <span>个人资料</span>
+          <el-button type="primary" @click="editProfile">
+            <el-icon>
+              <Edit />
+            </el-icon>
+            修改资料
+          </el-button>
+        </div>
+      </template>
+
+      <div class="profile-content">
+        <div class="user-info-display">
+          <div class="avatar-section">
+            <el-avatar :size="100" class="user-avatar">
+              {{ userInfo.realName ? userInfo.realName.charAt(0) : 'U' }}
+            </el-avatar>
+          </div>
+
+          <div class="info-section">
+            <h2 class="user-name">{{ userInfo.realName || '未设置姓名' }}</h2>
+            <p class="user-email">{{ userInfo.email || '未设置邮箱' }}</p>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">用户名：</span>
+                <span class="info-value">{{ userInfo.username || '未知' }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">手机号：</span>
+                <span class="info-value">{{ userInfo.phone || '未设置' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <el-dialog v-model="profileDialogVisible" title="修改资料" width="500px">
+      <el-form :model="profileForm" :rules="profileRules" ref="profileFormRef" label-width="80px">
+        <el-form-item label="真实姓名" prop="realName">
+          <el-input v-model="profileForm.realName" placeholder="请输入真实姓名" maxlength="20" show-word-limit />
+        </el-form-item>
+
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="profileForm.email" placeholder="请输入邮箱" type="email" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="profileDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveProfile" :loading="saving">
+            保存
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Edit } from '@element-plus/icons-vue'
+import api from '@/services/api'
+
+const profileFormRef = ref()
+const profileDialogVisible = ref(false)
+const saving = ref(false)
+
+const userInfo = ref({
+  id: '',
+  username: '',
+  realName: '',
+  phone: '',
+  email: ''
+})
+
+const profileForm = reactive({
+  realName: '',
+  phone: '',
+  email: ''
+})
+
+const profileRules = {
+  realName: [
+    { required: true, message: '请输入真实姓名', trigger: 'blur' },
+    { min: 2, max: 20, message: '姓名长度在 2 到 20 个字符', trigger: 'blur' }
+  ],
+  email: [
+    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+  ]
+}
+
+const loadUserInfo = async () => {
+  try {
+    const response = await api.auth.getCurrentUser()
+    if (response && response.code === 200 && response.data) {
+      const userData = response.data
+      userInfo.value = {
+        id: userData.id || '',
+        username: userData.username || '',
+        realName: userData.realName || '',
+        phone: userData.phone || '',
+        email: userData.email || ''
+      }
+    } else {
+      ElMessage.error('获取用户信息失败')
+    }
+  } catch (error) {
+    ElMessage.error('加载用户信息失败，请检查网络连接')
+  }
+}
+
+const editProfile = () => {
+  Object.assign(profileForm, userInfo.value)
+  profileDialogVisible.value = true
+}
+
+const saveProfile = async () => {
+  if (!profileFormRef.value) return
+
+  try {
+    await profileFormRef.value.validate()
+    saving.value = true
+
+    const response = await api.auth.updateUserInfo({
+      realName: profileForm.realName,
+      phone: profileForm.phone,
+      email: profileForm.email
+    })
+
+    if (response && response.code === 200) {
+      userInfo.value = { ...userInfo.value, ...profileForm }
+      profileDialogVisible.value = false
+      ElMessage.success('个人资料保存成功')
+    } else {
+      ElMessage.error('保存失败，请重试')
+    }
+  } catch (error) {
+    if (error.errors) {
+      ElMessage.warning('请检查表单填写是否正确')
+    } else {
+      ElMessage.error('保存失败，请检查网络连接')
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(() => {
+  loadUserInfo()
+})
+</script>
+
+<style scoped>
+.parent-profile {
+  background-color: transparent;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 900px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.profile-card :deep(.el-card__header) {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 20px 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 18px;
+  color: #1f2937;
+}
+
+.card-header .el-button {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+  font-weight: 500;
+}
+
+.card-header .el-button:hover {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.profile-card :deep(.el-card__body) {
+  padding: 32px;
+  background: white;
+}
+
+.profile-content {
+  width: 100%;
+}
+
+.user-info-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+  padding: 20px 0;
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.user-avatar {
+  border: 3px solid #f1f5f9;
+  background-color: #3b82f6;
+  color: white;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.info-section {
+  flex: 1;
+}
+
+.user-name {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.user-email {
+  margin: 0 0 16px 0;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #4b5563;
+  min-width: 90px;
+  font-size: 14px;
+}
+
+.info-value {
+  color: #1f2937;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.el-dialog {
+  border-radius: 8px;
+}
+
+.el-dialog :deep(.el-dialog__header) {
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 20px 24px;
+}
+
+.el-dialog :deep(.el-dialog__title) {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.el-dialog :deep(.el-dialog__body) {
+  padding: 24px;
+}
+
+.el-dialog :deep(.el-dialog__footer) {
+  padding: 20px 24px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f8fafc;
+}
+
+.dialog-footer .el-button {
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-weight: 500;
+}
+
+.dialog-footer .el-button--primary {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.dialog-footer .el-button--primary:hover {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+@media (max-width: 768px) {
+  .parent-profile {
+    padding: 16px;
+  }
+
+  .user-info-display {
+    flex-direction: column;
+    text-align: center;
+    gap: 24px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-card :deep(.el-card__body) {
+    padding: 20px 16px;
+  }
+
+  .user-name {
+    font-size: 20px;
+  }
+
+  .info-item {
+    padding: 12px;
+  }
+}
+</style>
